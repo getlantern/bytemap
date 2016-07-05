@@ -35,8 +35,10 @@ var (
 	enc = binary.BigEndian
 )
 
+// ByteMap is an immutable map[string]interface{} backed by a byte array.
 type ByteMap []byte
 
+// New creates a new ByteMap from the given map
 func New(m map[string]interface{}) ByteMap {
 	sortedKeys := make([]string, 0, len(m))
 	keysLen := 0
@@ -74,6 +76,7 @@ func New(m map[string]interface{}) ByteMap {
 	return bm
 }
 
+// Get gets the value for the given key, or nil if the key is not found.
 func (bm ByteMap) Get(key string) interface{} {
 	keyBytes := []byte(key)
 	keyOffset := 0
@@ -109,6 +112,9 @@ func (bm ByteMap) Get(key string) interface{} {
 	return nil
 }
 
+// Slice creates a new ByteMap that contains only the specified keys from the
+// original. Any keys that were not found in the original will appear in the
+// result with a nil value.
 func (bm ByteMap) Slice(keys ...string) ByteMap {
 	sort.Strings(keys)
 	keyBytes := make([][]byte, 0, len(keys))
