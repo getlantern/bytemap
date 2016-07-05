@@ -112,6 +112,40 @@ func (bm ByteMap) Get(key string) interface{} {
 	return nil
 }
 
+// AsMap returns a map representation of this ByteMap.
+func (bm ByteMap) AsMap() map[string]interface{} {
+	result := make(map[string]interface{}, 10)
+
+	keyOffset := 0
+	firstValueOffset := 0
+	for {
+		keyLen := int(enc.Uint16(bm[keyOffset:]))
+		keyOffset += SizeKeyLen
+		key := string(bm[keyOffset : keyOffset+keyLen])
+		keyOffset += keyLen
+		t := bm[keyOffset]
+		keyOffset += SizeValueType
+		if t == TypeNil {
+			result[key] = nil
+		} else {
+			valueOffset := int(enc.Uint32(bm[keyOffset:]))
+			if firstValueOffset == 0 {
+				firstValueOffset = valueOffset
+			}
+			result[key] = decodeValue(bm[valueOffset:], t)
+			keyOffset += SizeValueOffset
+		}
+		if firstValueOffset > 0 && keyOffset >= firstValueOffset {
+			break
+		}
+		if keyOffset >= len(bm) {
+			break
+		}
+	}
+
+	return result
+}
+
 // Slice creates a new ByteMap that contains only the specified keys from the
 // original. Any keys that were not found in the original will appear in the
 // result with a nil value.
