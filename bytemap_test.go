@@ -46,19 +46,19 @@ func TestNilOnly(t *testing.T) {
 	assert.Nil(t, bm.Get("unspecified"))
 }
 
-// func TestSlice(t *testing.T) {
-// 	bm := New(m)
-// 	keys := []string{"int16", "unknown", "byte", "string"}
-// 	bm2 := bm.Slice(keys...)
-// 	assert.True(t, len(bm2) < len(bm))
-// 	for _, key := range keys {
-// 		if "unknown" == key {
-// 			assert.nil(t, bm2.Get(key))
-// 		} else {
-// 			assert.Equal(t, m[key], bm2.Get(key))
-// 		}
-// 	}
-// }
+func TestSlice(t *testing.T) {
+	bm := New(m)
+	keys := []string{"int16", "aunknown", "byte", "string"}
+	bm2 := bm.Slice(keys...)
+	assert.True(t, len(bm2) < len(bm))
+	for _, key := range keys {
+		if "aunknown" == key {
+			assert.Nil(t, bm2.Get(key))
+		} else {
+			assert.Equal(t, m[key], bm2.Get(key))
+		}
+	}
+}
 
 func BenchmarkByteMapAllKeys(b *testing.B) {
 	for i := 0; i < b.N; i++ {
