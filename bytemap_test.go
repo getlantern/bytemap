@@ -34,7 +34,31 @@ func TestRoundTrip(t *testing.T) {
 	for key, value := range m {
 		assert.Equal(t, value, bm.Get(key))
 	}
+	assert.Nil(t, bm.Get("unspecified"))
 }
+
+func TestNilOnly(t *testing.T) {
+	m2 := map[string]interface{}{
+		"nil": nil,
+	}
+	bm := New(m2)
+	assert.Nil(t, bm.Get("nil"))
+	assert.Nil(t, bm.Get("unspecified"))
+}
+
+// func TestSlice(t *testing.T) {
+// 	bm := New(m)
+// 	keys := []string{"int16", "unknown", "byte", "string"}
+// 	bm2 := bm.Slice(keys...)
+// 	assert.True(t, len(bm2) < len(bm))
+// 	for _, key := range keys {
+// 		if "unknown" == key {
+// 			assert.nil(t, bm2.Get(key))
+// 		} else {
+// 			assert.Equal(t, m[key], bm2.Get(key))
+// 		}
+// 	}
+// }
 
 func BenchmarkByteMapAllKeys(b *testing.B) {
 	for i := 0; i < b.N; i++ {

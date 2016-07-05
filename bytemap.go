@@ -43,12 +43,16 @@ func New(m map[string]interface{}) ByteMap {
 	valuesLen := 0
 	for key, value := range m {
 		sortedKeys = append(sortedKeys, key)
-		keysLen += len(key)
-		valuesLen += lengthOf(value)
+		valLen := lengthOf(value)
+		keysLen += len(key) + SizeKeyLen + SizeValueType
+		if valLen > 0 {
+			keysLen += SizeValueOffset
+		}
+		valuesLen += valLen
 	}
 	sort.Strings(sortedKeys)
 
-	startOfValues := keysLen + len(sortedKeys)*(SizeKeyLen+SizeValueType+SizeValueOffset)
+	startOfValues := keysLen
 	bm := make(ByteMap, startOfValues+valuesLen)
 	keyOffset := 0
 	valueOffset := startOfValues
@@ -60,9 +64,11 @@ func New(m map[string]interface{}) ByteMap {
 		t, n := encodeValue(bm[valueOffset:], m[key])
 		bm[keyOffset] = t
 		keyOffset += SizeValueType
-		enc.PutUint32(bm[keyOffset:], uint32(valueOffset))
-		keyOffset += SizeValueOffset
-		valueOffset += n
+		if t != TypeNil {
+			enc.PutUint32(bm[keyOffset:], uint32(valueOffset))
+			keyOffset += SizeValueOffset
+			valueOffset += n
+		}
 	}
 
 	return bm
@@ -74,25 +80,125 @@ func (bm ByteMap) Get(key string) interface{} {
 	firstValueOffset := 0
 	for {
 		keyLen := int(enc.Uint16(bm[keyOffset:]))
-		keyOffset += 2
+		keyOffset += SizeKeyLen
 		keysMatch := bytes.Equal(bm[keyOffset:keyOffset+keyLen], keyBytes)
 		keyOffset += keyLen
 		t := bm[keyOffset]
 		keyOffset += SizeValueType
-		valueOffset := int(enc.Uint32(bm[keyOffset:]))
-		if firstValueOffset == 0 {
-			firstValueOffset = valueOffset
+		if t == TypeNil {
+			if keysMatch {
+				return nil
+			}
+		} else {
+			valueOffset := int(enc.Uint32(bm[keyOffset:]))
+			if firstValueOffset == 0 {
+				firstValueOffset = valueOffset
+			}
+			if keysMatch {
+				return decodeValue(bm[valueOffset:], t)
+			}
+			keyOffset += SizeValueOffset
 		}
-		if keysMatch {
-			return decodeValue(bm[valueOffset:], t)
+		if firstValueOffset > 0 && keyOffset >= firstValueOffset {
+			break
 		}
-		keyOffset += SizeValueOffset
-		if keyOffset == firstValueOffset {
+		if keyOffset >= len(bm) {
 			break
 		}
 	}
 	return nil
 }
+
+// func (bm ByteMap) Slice(keys ...string) ByteMap {
+// 	keyBytes := make([][]byte, len(keys))
+// 	for _, key := range keys {
+// 		keyBytes = append(keyBytes, []byte(key))
+// 	}
+// 	matchedKeys := make([][]byte, 0, len(keys))
+// 	matchedValues := make([][]byte, 0, len(keys))
+// 	keysLen := 0
+// 	valuesLen := 0
+// 	lastKeyMatched := false
+// 	lastValueOffset := 0
+// 	keyOffset := 0
+// 	firstValueOffset := 0
+//   more := true
+//   matched := false
+//
+//   advanceKeyMatch := func(candidate []byte) {
+//   	for {
+//   		keyComparison := bytes.Compare(candidate, keyBytes[0])
+//       more = len(keyBytes) > 1
+//       if keyComparison > 0 {
+//         // Key not represented, skip it
+//         keyLen = len(keyBytes[0])
+//     		b := make([]byte, SizeKeyLen + SizeValueOffset, keyLen)
+//         enc.PutUint16(b, keyLen)
+//         copy(b[SizeKeyLen:], keyBytes[0])
+//         enc.PutUint32(b[SizeKeyLen+keyLen:], )
+//       }
+//       matched = keyComparison == 0
+//       if keyCompari
+//       if keyComaprison ==
+//   		if keyComparison >= 0 {
+//   			matched := keyComparison == 0
+//   			if more {
+//   				return matched, keyBytes[1:]
+//   			}
+//   			return matched, nil
+//   		}
+//   		if !more {
+//   			return false, nil
+//   		}
+//   		keyBytes = keyBytes[1:]
+//   	}
+//   }
+// 	for {
+// 		keyStart := keyOffset
+// 		keyLen := int(enc.Uint16(bm[keyOffset:]))
+// 		keyOffset += SizeKeyLen
+// 		candidate := bm[keyOffset : keyOffset+keyLen]
+// 		keysMatch := false
+// 		keysMatch, keyBytes = advanceKeyMatch(candidate, keyBytes)
+// 		keyOffset += keyLen + SizeValueType
+// 		valueOffset := int(enc.Uint32(bm[keyOffset:]))
+// 		if firstValueOffset == 0 {
+// 			firstValueOffset = valueOffset
+// 		}
+// 		if lastKeyMatched {
+// 			matchedValues = append(matchedValues, bm[lastValueOffset:valueOffset])
+// 			valuesLen += valueOffset - lastValueOffset
+// 		}
+// 		lastValueOffset = valueOffset
+// 		lastKeyMatched = keysMatch
+// 		if keysMatch {
+// 			matchedKeys = append(matchedKeys, bm[keyStart:keyOffset])
+// 			keysLen += keyOffset - keyStart
+// 		}
+// 		if keyBytes == nil {
+// 			break
+// 		}
+// 		keyOffset += SizeValueOffset
+// 		if keyOffset >= firstValueOffset {
+// 			break
+// 		}
+// 	}
+//
+// 	if lastKeyMatched {
+// 		matchedValues = append(matchedValues, bm[lastValueOffset:])
+// 		valuesLen += len(bm) - lastValueOffset
+// 	}
+//
+// 	out := make(ByteMap, 0, keysLen+valuesLen)
+// 	for _, kb := range matchedKeys {
+// 		out = append(out, kb...)
+// 	}
+// 	for _, vb := range matchedValues {
+// 		out = append(out, vb...)
+// 	}
+//
+// 	return out
+// }
 
 func encodeValue(slice []byte, value interface{}) (byte, int) {
 	switch v := value.(type) {
@@ -188,7 +294,7 @@ func lengthOf(value interface{}) int {
 	case uint64, int64, float64, time.Time:
 		return 8
 	case string:
-		return len(v)
+		return len(v) + 2
 	}
 	return 0
 }
