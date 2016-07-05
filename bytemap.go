@@ -3,7 +3,6 @@ package bytemap
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -76,20 +75,16 @@ func New(m map[string]interface{}) ByteMap {
 }
 
 func (bm ByteMap) Get(key string) interface{} {
-	fmt.Println("Getting " + key)
 	keyBytes := []byte(key)
 	keyOffset := 0
 	firstValueOffset := 0
 	for {
 		keyLen := int(enc.Uint16(bm[keyOffset:]))
-		fmt.Printf("%d : %d\n", keyOffset, keyLen)
-		fmt.Println(string(bm[keyOffset+2 : keyOffset+2+5]))
 		keyOffset += SizeKeyLen
 		keysMatch := bytes.Equal(bm[keyOffset:keyOffset+keyLen], keyBytes)
 		keyOffset += keyLen
 		t := bm[keyOffset]
 		keyOffset += SizeValueType
-		fmt.Println(keysMatch)
 		if t == TypeNil {
 			if keysMatch {
 				return nil
@@ -132,19 +127,16 @@ func (bm ByteMap) Slice(keys ...string) ByteMap {
 	advance := func(candidate []byte) {
 		for {
 			key := keyBytes[0]
-			str := string(key)
 			keyComparison := bytes.Compare(candidate, key)
-			fmt.Printf("Testing %v against '%v' resulted in %d\n", str, string(candidate), keyComparison)
 			if keyComparison > 0 {
-				fmt.Println("Skipping " + str)
 				// Key not represented, skip it
 				keyLen := len(key)
 				b := make([]byte, SizeKeyLen+keyLen+SizeValueType)
 				enc.PutUint16(b, uint16(keyLen))
 				copy(b[SizeKeyLen:], key)
-				keysLen += SizeKeyLen + keyLen
+				keysLen += len(b)
 				matchedKeys = append(matchedKeys, b)
-				valueOffsets = append(valueOffsets, 0)
+				valueOffsets = append(valueOffsets, -1)
 				if len(keyBytes) > 1 {
 					keyBytes = keyBytes[1:]
 					continue
@@ -155,7 +147,6 @@ func (bm ByteMap) Slice(keys ...string) ByteMap {
 			}
 			matched = keyComparison == 0
 			if matched {
-				fmt.Println("Matched " + str)
 				if len(keyBytes) > 1 {
 					keyBytes = keyBytes[1:]
 				} else {
@@ -176,20 +167,17 @@ func (bm ByteMap) Slice(keys ...string) ByteMap {
 		t := bm[keyOffset]
 		keyOffset += SizeValueType
 		if matched {
-			fmt.Printf("%d '%v'\n", keyLen, string(bm[keyStart+2:keyOffset]))
 			matchedKeys = append(matchedKeys, bm[keyStart:keyOffset])
 			if t == TypeNil {
-				valueOffsets = append(valueOffsets, 0)
+				valueOffsets = append(valueOffsets, -1)
 			} else {
 				valueOffset := int(enc.Uint32(bm[keyOffset:]))
 				valueLen := bm.lengthOf(valueOffset, t)
 				matchedValues = append(matchedValues, bm[valueOffset:valueOffset+valueLen])
 				valueOffsets = append(valueOffsets, valuesLen)
-				fmt.Printf("%d + %d\n", valuesLen, valueLen)
+				keysLen += SizeValueOffset
 				valuesLen += valueLen
-				fmt.Printf("%v %d %d %d\n", string(candidate), valueOffset, valuesLen, valueLen)
 			}
-			fmt.Println(keyOffset - keyStart)
 			keysLen += keyOffset - keyStart
 		}
 		if t != TypeNil {
@@ -214,16 +202,13 @@ func (bm ByteMap) Slice(keys ...string) ByteMap {
 		}
 	}
 
-	fmt.Println("Here")
 	out := make(ByteMap, keysLen+valuesLen)
 	offset := 0
 	for i, kb := range matchedKeys {
 		valueOffset := valueOffsets[i]
-		fmt.Printf("%d '%v' %d\n", len(kb), string(kb[SizeKeyLen:len(kb)-SizeValueType]), valueOffset)
 		copy(out[offset:], kb)
 		offset += len(kb)
-		if valueOffset != 0 {
-			fmt.Printf("%d\n", uint32(valueOffset+keysLen))
+		if valueOffset >= 0 {
 			enc.PutUint32(out[offset:], uint32(valueOffset+keysLen))
 			offset += SizeValueOffset
 		}
@@ -233,7 +218,6 @@ func (bm ByteMap) Slice(keys ...string) ByteMap {
 		offset += len(vb)
 	}
 
-	fmt.Println("Done")
 	return out
 }
 
@@ -313,7 +297,6 @@ func decodeValue(slice []byte, t byte) interface{} {
 		return math.Float64frombits((enc.Uint64(slice)))
 	case TypeString:
 		l := int(enc.Uint16(slice))
-		fmt.Printf("String length: %d\n", l)
 		return string(slice[2 : l+2])
 	case TypeTime:
 		nanos := int64(enc.Uint64(slice))

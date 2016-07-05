@@ -48,7 +48,7 @@ func TestNilOnly(t *testing.T) {
 
 func TestSlice(t *testing.T) {
 	bm := New(m)
-	keys := []string{"int16", "aunknown", "byte", "string"}
+	keys := []string{"int16", "aunknown", "byte", "nil", "string"}
 	bm2 := bm.Slice(keys...)
 	assert.True(t, len(bm2) < len(bm))
 	for _, key := range keys {
