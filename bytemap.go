@@ -19,6 +19,7 @@ const (
 	TypeInt16
 	TypeInt32
 	TypeInt64
+	TypeInt
 	TypeFloat32
 	TypeFloat64
 	TypeString
@@ -294,6 +295,9 @@ func encodeValue(slice []byte, value interface{}) (byte, int) {
 	case int64:
 		enc.PutUint64(slice, uint64(v))
 		return TypeInt64, 8
+	case int:
+		enc.PutUint64(slice, uint64(v))
+		return TypeInt, 8
 	case float32:
 		enc.PutUint32(slice, math.Float32bits(v))
 		return TypeFloat32, 4
@@ -331,6 +335,8 @@ func decodeValue(slice []byte, t byte) interface{} {
 		return int32(enc.Uint32(slice))
 	case TypeInt64:
 		return int64(enc.Uint64(slice))
+	case TypeInt:
+		return int(enc.Uint64(slice))
 	case TypeFloat32:
 		return math.Float32frombits(enc.Uint32(slice))
 	case TypeFloat64:
@@ -354,7 +360,7 @@ func encodedLength(value interface{}) int {
 		return 2
 	case uint32, int32, float32:
 		return 4
-	case uint64, int64, float64, time.Time:
+	case uint64, int64, int, float64, time.Time:
 		return 8
 	case string:
 		return len(v) + 2
@@ -370,7 +376,7 @@ func (bm ByteMap) lengthOf(valueOffset int, t byte) int {
 		return 2
 	case TypeUInt32, TypeInt32, TypeFloat32:
 		return 4
-	case TypeUInt64, TypeInt64, TypeFloat64, TypeTime:
+	case TypeUInt64, TypeInt64, TypeInt, TypeFloat64, TypeTime:
 		return 8
 	case TypeString:
 		return int(enc.Uint16(bm[valueOffset:])) + 2
