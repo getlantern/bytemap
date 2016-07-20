@@ -33,7 +33,7 @@ const (
 )
 
 var (
-	enc = binary.BigEndian
+	enc = binary.LittleEndian
 )
 
 // ByteMap is an immutable map[string]interface{} backed by a byte array.
@@ -41,6 +41,45 @@ type ByteMap []byte
 
 // New creates a new ByteMap from the given map
 func New(m map[string]interface{}) ByteMap {
+	sortedKeys := make([]string, 0, len(m))
+	keysLen := 0
+	valuesLen := 0
+	for key, value := range m {
+		sortedKeys = append(sortedKeys, key)
+		valLen := encodedLength(value)
+		keysLen += len(key) + SizeKeyLen + SizeValueType
+		if valLen > 0 {
+			keysLen += SizeValueOffset
+		}
+		valuesLen += valLen
+	}
+	sort.Strings(sortedKeys)
+
+	startOfValues := keysLen
+	bm := make(ByteMap, startOfValues+valuesLen)
+	keyOffset := 0
+	valueOffset := startOfValues
+	for _, key := range sortedKeys {
+		keyLen := len(key)
+		enc.PutUint16(bm[keyOffset:], uint16(keyLen))
+		copy(bm[keyOffset+SizeKeyLen:], key)
+		keyOffset += SizeKeyLen + keyLen
+		t, n := encodeValue(bm[valueOffset:], m[key])
+		bm[keyOffset] = t
+		keyOffset += SizeValueType
+		if t != TypeNil {
+			enc.PutUint32(bm[keyOffset:], uint32(valueOffset))
+			keyOffset += SizeValueOffset
+			valueOffset += n
+		}
+	}
+
+	return bm
+}
+
+// NewFLoat creates a new ByteMap from the given map
+func NewFloat(m map[string]float64) ByteMap {
+	// TODO: this code is duplicated with the above, need to get DRY
 	sortedKeys := make([]string, 0, len(m))
 	keysLen := 0
 	valuesLen := 0
