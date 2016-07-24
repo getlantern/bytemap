@@ -379,7 +379,7 @@ func decodeValue(slice []byte, t byte) interface{} {
 	case TypeFloat32:
 		return math.Float32frombits(enc.Uint32(slice))
 	case TypeFloat64:
-		return math.Float64frombits((enc.Uint64(slice)))
+		return math.Float64frombits(enc.Uint64(slice))
 	case TypeString:
 		l := int(enc.Uint16(slice))
 		return string(slice[2 : l+2])
