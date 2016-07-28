@@ -1,3 +1,4 @@
+// Package bytemap provides a map[string]interface{} encoded as a byte slice.
 package bytemap
 
 import (
