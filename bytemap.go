@@ -157,6 +157,10 @@ func (bm ByteMap) Get(key string) interface{} {
 func (bm ByteMap) AsMap() map[string]interface{} {
 	result := make(map[string]interface{}, 10)
 
+	if len(bm) == 0 {
+		return result
+	}
+
 	keyOffset := 0
 	firstValueOffset := 0
 	for {
