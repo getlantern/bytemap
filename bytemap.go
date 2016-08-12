@@ -376,7 +376,7 @@ func decodeValue(slice []byte, t byte) interface{} {
 	case TypeUInt64:
 		return enc.Uint64(slice)
 	case TypeUInt:
-		return enc.Uint64(slice)
+		return uint(enc.Uint64(slice))
 	case TypeInt8:
 		return int8(slice[0])
 	case TypeInt16:

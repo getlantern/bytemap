@@ -36,7 +36,7 @@ var (
 func TestGet(t *testing.T) {
 	bm := New(m)
 	for key, value := range m {
-		assert.EqualValues(t, value, bm.Get(key))
+		assert.Equal(t, value, bm.Get(key))
 	}
 	assert.Nil(t, bm.Get("unspecified"))
 }
@@ -45,7 +45,7 @@ func TestAsMap(t *testing.T) {
 	m2 := New(m).AsMap()
 	if assert.Equal(t, len(m), len(m2)) {
 		for key, value := range m {
-			assert.EqualValues(t, value, m2[key])
+			assert.Equal(t, value, m2[key])
 		}
 	}
 }
