@@ -17,6 +17,7 @@ var (
 		"uint16":  uint16(math.MaxUint16),
 		"uint32":  uint32(math.MaxUint32),
 		"uint64":  uint64(math.MaxUint64),
+		"uint":    uint(math.MaxUint64),
 		"int8":    int8(math.MaxInt8),
 		"int16":   int16(math.MaxInt16),
 		"int32":   int32(math.MaxInt32),
@@ -35,7 +36,7 @@ var (
 func TestGet(t *testing.T) {
 	bm := New(m)
 	for key, value := range m {
-		assert.Equal(t, value, bm.Get(key))
+		assert.EqualValues(t, value, bm.Get(key))
 	}
 	assert.Nil(t, bm.Get("unspecified"))
 }
@@ -44,7 +45,7 @@ func TestAsMap(t *testing.T) {
 	m2 := New(m).AsMap()
 	if assert.Equal(t, len(m), len(m2)) {
 		for key, value := range m {
-			assert.Equal(t, value, m2[key])
+			assert.EqualValues(t, value, m2[key])
 		}
 	}
 }

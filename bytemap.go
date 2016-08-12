@@ -25,6 +25,7 @@ const (
 	TypeFloat64
 	TypeString
 	TypeTime
+	TypeUInt
 )
 
 const (
@@ -327,6 +328,9 @@ func encodeValue(slice []byte, value interface{}) (byte, int) {
 	case uint64:
 		enc.PutUint64(slice, v)
 		return TypeUInt64, 8
+	case uint:
+		enc.PutUint64(slice, uint64(v))
+		return TypeUInt, 8
 	case int8:
 		slice[0] = byte(v)
 		return TypeInt8, 1
@@ -371,6 +375,8 @@ func decodeValue(slice []byte, t byte) interface{} {
 		return enc.Uint32(slice)
 	case TypeUInt64:
 		return enc.Uint64(slice)
+	case TypeUInt:
+		return enc.Uint64(slice)
 	case TypeInt8:
 		return int8(slice[0])
 	case TypeInt16:
@@ -404,7 +410,7 @@ func encodedLength(value interface{}) int {
 		return 2
 	case uint32, int32, float32:
 		return 4
-	case uint64, int64, int, float64, time.Time:
+	case uint64, int64, uint, int, float64, time.Time:
 		return 8
 	case string:
 		return len(v) + 2
@@ -420,7 +426,7 @@ func (bm ByteMap) lengthOf(valueOffset int, t byte) int {
 		return 2
 	case TypeUInt32, TypeInt32, TypeFloat32:
 		return 4
-	case TypeUInt64, TypeInt64, TypeInt, TypeFloat64, TypeTime:
+	case TypeUInt64, TypeInt64, TypeUInt, TypeInt, TypeFloat64, TypeTime:
 		return 8
 	case TypeString:
 		return int(enc.Uint16(bm[valueOffset:])) + 2
