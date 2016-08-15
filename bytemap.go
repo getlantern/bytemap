@@ -79,6 +79,43 @@ func New(m map[string]interface{}) ByteMap {
 	return bm
 }
 
+// FromSortedKeysAndValues constructs a ByteMap from sorted keys and values.
+func FromSortedKeysAndValues(keys []string, values []interface{}) ByteMap {
+	keysLen := 0
+	for _, key := range keys {
+		keysLen += len(key) + SizeKeyLen + SizeValueType
+	}
+	valuesLen := 0
+	for _, value := range values {
+		valLen := encodedLength(value)
+		valuesLen += valLen
+		if valLen > 0 {
+			keysLen += SizeValueOffset
+		}
+	}
+
+	startOfValues := keysLen
+	bm := make(ByteMap, startOfValues+valuesLen)
+	keyOffset := 0
+	valueOffset := startOfValues
+	for i, key := range keys {
+		keyLen := len(key)
+		enc.PutUint16(bm[keyOffset:], uint16(keyLen))
+		copy(bm[keyOffset+SizeKeyLen:], key)
+		keyOffset += SizeKeyLen + keyLen
+		t, n := encodeValue(bm[valueOffset:], values[i])
+		bm[keyOffset] = t
+		keyOffset += SizeValueType
+		if t != TypeNil {
+			enc.PutUint32(bm[keyOffset:], uint32(valueOffset))
+			keyOffset += SizeValueOffset
+			valueOffset += n
+		}
+	}
+
+	return bm
+}
+
 // NewFLoat creates a new ByteMap from the given map
 func NewFloat(m map[string]float64) ByteMap {
 	// TODO: this code is duplicated with the above, need to get DRY

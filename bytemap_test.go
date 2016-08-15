@@ -3,6 +3,7 @@ package bytemap
 import (
 	"bytes"
 	"math"
+	"sort"
 	"testing"
 	"time"
 
@@ -48,6 +49,21 @@ func TestAsMap(t *testing.T) {
 			assert.Equal(t, value, m2[key])
 		}
 	}
+}
+
+func TestFromSortedKeysAndValues(t *testing.T) {
+	var keys []string
+	var values []interface{}
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		values = append(values, m[key])
+	}
+	bm1 := New(m)
+	bm2 := FromSortedKeysAndValues(keys, values)
+	assert.EqualValues(t, bm1, bm2)
 }
 
 func TestNilOnly(t *testing.T) {
