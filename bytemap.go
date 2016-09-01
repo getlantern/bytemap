@@ -161,6 +161,9 @@ func (bm ByteMap) Get(key string) interface{} {
 	keyOffset := 0
 	firstValueOffset := 0
 	for {
+		if keyOffset >= len(bm) {
+			break
+		}
 		keyLen := int(enc.Uint16(bm[keyOffset:]))
 		keyOffset += SizeKeyLen
 		keysMatch := bytes.Equal(bm[keyOffset:keyOffset+keyLen], keyBytes)
@@ -184,9 +187,6 @@ func (bm ByteMap) Get(key string) interface{} {
 		if firstValueOffset > 0 && keyOffset >= firstValueOffset {
 			break
 		}
-		if keyOffset >= len(bm) {
-			break
-		}
 	}
 	return nil
 }
@@ -202,6 +202,9 @@ func (bm ByteMap) AsMap() map[string]interface{} {
 	keyOffset := 0
 	firstValueOffset := 0
 	for {
+		if keyOffset >= len(bm) {
+			break
+		}
 		keyLen := int(enc.Uint16(bm[keyOffset:]))
 		keyOffset += SizeKeyLen
 		key := string(bm[keyOffset : keyOffset+keyLen])
@@ -219,9 +222,6 @@ func (bm ByteMap) AsMap() map[string]interface{} {
 			keyOffset += SizeValueOffset
 		}
 		if firstValueOffset > 0 && keyOffset >= firstValueOffset {
-			break
-		}
-		if keyOffset >= len(bm) {
 			break
 		}
 	}
@@ -281,6 +281,9 @@ func (bm ByteMap) Slice(keys ...string) ByteMap {
 	}
 
 	for {
+		if keyOffset >= len(bm) {
+			break
+		}
 		keyStart := keyOffset
 		keyLen := int(enc.Uint16(bm[keyOffset:]))
 		keyOffset += SizeKeyLen
@@ -315,9 +318,6 @@ func (bm ByteMap) Slice(keys ...string) ByteMap {
 			}
 		}
 		if keyOffset >= firstValueOffset {
-			break
-		}
-		if keyOffset >= len(bm) {
 			break
 		}
 		if len(keyBytes) == 0 {

@@ -42,6 +42,11 @@ func TestGet(t *testing.T) {
 	assert.Nil(t, bm.Get("unspecified"))
 }
 
+func TestGetEmpty(t *testing.T) {
+	bm := ByteMap(nil)
+	assert.Nil(t, bm.Get("unspecified"))
+}
+
 func TestAsMap(t *testing.T) {
 	m2 := New(m).AsMap()
 	if assert.Equal(t, len(m), len(m2)) {
@@ -49,6 +54,11 @@ func TestAsMap(t *testing.T) {
 			assert.Equal(t, value, m2[key])
 		}
 	}
+}
+
+func TestAsMapEmpty(t *testing.T) {
+	bm := ByteMap(nil)
+	assert.Empty(t, bm.AsMap())
 }
 
 func TestFromSortedKeysAndValues(t *testing.T) {
@@ -86,6 +96,11 @@ func TestSlice(t *testing.T) {
 			assert.Equal(t, m[key], bm2.Get(key))
 		}
 	}
+}
+
+func TestSliceEmpty(t *testing.T) {
+	bm := ByteMap(nil)
+	assert.Empty(t, bm.Slice("unspecified").AsMap())
 }
 
 func BenchmarkByteMapAllKeys(b *testing.B) {
