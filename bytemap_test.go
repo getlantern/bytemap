@@ -76,6 +76,25 @@ func TestFromSortedKeysAndValues(t *testing.T) {
 	assert.EqualValues(t, bm1, bm2)
 }
 
+func TestFromSortedKeysAndFloats(t *testing.T) {
+	m := map[string]interface{}{
+		"a": float64(6.54),
+		"b": float64(-72.32),
+	}
+	var keys []string
+	var values []float64
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		values = append(values, m[key].(float64))
+	}
+	bm1 := New(m)
+	bm2 := FromSortedKeysAndFloats(keys, values)
+	assert.EqualValues(t, bm1, bm2)
+}
+
 func TestNilOnly(t *testing.T) {
 	m2 := map[string]interface{}{
 		"nil": nil,
