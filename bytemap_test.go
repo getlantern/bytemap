@@ -2,6 +2,7 @@ package bytemap
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -34,10 +35,26 @@ var (
 	sliceKeys = []string{"int16", "aunknown", "byte", "nil", "string"}
 )
 
+func init() {
+
+}
+
 func TestGet(t *testing.T) {
 	bm := New(m)
+	mbytes := map[string][]byte{}
+	for key, value := range m {
+		b := make([]byte, 100)
+		_, n := encodeValue(b, value)
+		b = b[:n]
+		if len(b) == 0 {
+			b = nil
+		}
+		mbytes[key] = b
+	}
+
 	for key, value := range m {
 		assert.Equal(t, value, bm.Get(key))
+		assert.EqualValues(t, mbytes[key], bm.GetBytes(key), fmt.Sprint(value))
 	}
 	assert.Nil(t, bm.Get("unspecified"))
 }

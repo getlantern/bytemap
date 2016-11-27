@@ -201,6 +201,43 @@ func (bm ByteMap) Get(key string) interface{} {
 	return nil
 }
 
+// GetBytes gets the bytes slice for the given key, or nil if the key is not
+// found.
+func (bm ByteMap) GetBytes(key string) []byte {
+	keyBytes := []byte(key)
+	keyOffset := 0
+	firstValueOffset := 0
+	for {
+		if keyOffset >= len(bm) {
+			break
+		}
+		keyLen := int(enc.Uint16(bm[keyOffset:]))
+		keyOffset += SizeKeyLen
+		keysMatch := bytes.Equal(bm[keyOffset:keyOffset+keyLen], keyBytes)
+		keyOffset += keyLen
+		t := bm[keyOffset]
+		keyOffset += SizeValueType
+		if t == TypeNil {
+			if keysMatch {
+				return nil
+			}
+		} else {
+			valueOffset := int(enc.Uint32(bm[keyOffset:]))
+			if firstValueOffset == 0 {
+				firstValueOffset = valueOffset
+			}
+			if keysMatch {
+				return valueBytes(bm[valueOffset:], t)
+			}
+			keyOffset += SizeValueOffset
+		}
+		if firstValueOffset > 0 && keyOffset >= firstValueOffset {
+			break
+		}
+	}
+	return nil
+}
+
 // AsMap returns a map representation of this ByteMap.
 func (bm ByteMap) AsMap() map[string]interface{} {
 	result := make(map[string]interface{}, 10)
@@ -445,6 +482,25 @@ func decodeValue(slice []byte, t byte) interface{} {
 		nanos := int64(enc.Uint64(slice))
 		second := int64(time.Second)
 		return time.Unix(nanos/second, nanos%second)
+	}
+	return nil
+}
+
+func valueBytes(slice []byte, t byte) []byte {
+	switch t {
+	case TypeBool, TypeByte, TypeInt8:
+		return slice[:1]
+	case TypeUInt16, TypeInt16:
+		return slice[:2]
+	case TypeUInt32, TypeInt32, TypeFloat32:
+		return slice[:4]
+	case TypeUInt64, TypeUInt, TypeInt64, TypeInt, TypeFloat64:
+		return slice[:8]
+	case TypeString:
+		l := int(enc.Uint16(slice))
+		return slice[0 : l+2]
+	case TypeTime:
+		return slice[:8]
 	}
 	return nil
 }
