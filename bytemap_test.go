@@ -73,6 +73,26 @@ func TestAsMap(t *testing.T) {
 	}
 }
 
+func TestIterateValueBytes(t *testing.T) {
+	mc := make(map[string]interface{}, len(m))
+	for key, value := range m {
+		mc[key] = value
+	}
+
+	New(m).Iterate(true, true, func(key string, value interface{}, valueBytes []byte) bool {
+		exist := mc[key]
+		var slice []byte
+		if value != nil {
+			slice = make([]byte, len(valueBytes))
+			encodeValue(slice, exist)
+		}
+		assert.EqualValues(t, slice, valueBytes)
+		delete(mc, key)
+		return true
+	})
+	assert.Empty(t, mc)
+}
+
 func TestAsMapEmpty(t *testing.T) {
 	bm := ByteMap(nil)
 	assert.Empty(t, bm.AsMap())

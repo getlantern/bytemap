@@ -241,14 +241,36 @@ func (bm ByteMap) GetBytes(key string) []byte {
 // AsMap returns a map representation of this ByteMap.
 func (bm ByteMap) AsMap() map[string]interface{} {
 	result := make(map[string]interface{}, 10)
-	bm.Iterate(func(key string, value interface{}) bool {
+	bm.IterateValues(func(key string, value interface{}) bool {
 		result[key] = value
 		return true
 	})
 	return result
 }
 
-func (bm ByteMap) Iterate(cb func(key string, value interface{}) bool) {
+// IterateValues iterates over the key/value pairs in this ByteMap and calls the
+// given callback with each. If the callback returns false, iteration stops even
+// if there remain unread values.
+func (bm ByteMap) IterateValues(cb func(key string, value interface{}) bool) {
+	bm.Iterate(true, false, func(key string, value interface{}, valueBytes []byte) bool {
+		return cb(key, value)
+	})
+}
+
+// IterateValueBytes iterates over the key/value bytes pairs in this ByteMap and
+// calls the given callback with each. If the callback returns false, iteration
+// stops even if there remain unread values.
+func (bm ByteMap) IterateValueBytes(cb func(key string, valueBytes []byte) bool) {
+	bm.Iterate(false, true, func(key string, value interface{}, valueBytes []byte) bool {
+		return cb(key, valueBytes)
+	})
+}
+
+// Iterate iterates over the key/value pairs in this ByteMap and calls the given
+// callback with each. If the callback returns false, iteration stops even if
+// there remain unread values. includeValue and includeBytes determine whether
+// to include the value, the bytes or both in the callback.
+func (bm ByteMap) Iterate(includeValue bool, includeBytes bool, cb func(key string, value interface{}, valueBytes []byte) bool) {
 	if len(bm) == 0 {
 		return
 	}
@@ -266,17 +288,22 @@ func (bm ByteMap) Iterate(cb func(key string, value interface{}) bool) {
 		t := bm[keyOffset]
 		keyOffset += SizeValueType
 		var value interface{}
-		if t == TypeNil {
-			value = nil
-		} else {
+		var bytes []byte
+		if t != TypeNil {
 			valueOffset := int(enc.Uint32(bm[keyOffset:]))
 			if firstValueOffset == 0 {
 				firstValueOffset = valueOffset
 			}
-			value = decodeValue(bm[valueOffset:], t)
+			slice := bm[valueOffset:]
+			if includeValue {
+				value = decodeValue(slice, t)
+			}
+			if includeBytes {
+				bytes = valueBytes(slice, t)
+			}
 			keyOffset += SizeValueOffset
 		}
-		if !cb(key, value) {
+		if !cb(key, value, bytes) {
 			// Stop iterating
 			return
 		}
