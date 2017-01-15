@@ -244,3 +244,32 @@ func BenchmarkMsgPackSlice(b *testing.B) {
 		msgpack.Marshal(m2)
 	}
 }
+
+var testKeys = []string{"uint64", "float32", "int16"}
+
+func BenchmarkReadKeysIndividually(b *testing.B) {
+	bm := New(m)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for _, key := range testKeys {
+			bm.GetBytes(key)
+		}
+	}
+}
+
+func BenchmarkReadKeysIteration(b *testing.B) {
+	bm := New(m)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		bm.IterateValueBytes(func(key string, valueBytes []byte) bool {
+			for _, testKey := range testKeys {
+				if key == testKey {
+					return false
+				}
+			}
+			return true
+		})
+	}
+}
