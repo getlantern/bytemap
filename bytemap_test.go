@@ -165,6 +165,23 @@ func BenchmarkNew(b *testing.B) {
 	}
 }
 
+func BenchmarkFromSortedKeysAndValues(b *testing.B) {
+	var keys []string
+	var values []interface{}
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		values = append(values, m[key])
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		FromSortedKeysAndValues(keys, values)
+	}
+}
+
 func BenchmarkByteMapAllKeys(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bm := New(m)
