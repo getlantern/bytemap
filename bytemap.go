@@ -43,97 +43,54 @@ type ByteMap []byte
 
 // New creates a new ByteMap from the given map
 func New(m map[string]interface{}) ByteMap {
-	sortedKeys := make([]string, 0, len(m))
-	keysLen := 0
-	valuesLen := 0
-	for key, value := range m {
-		sortedKeys = append(sortedKeys, key)
-		valLen := encodedLength(value)
-		keysLen += len(key) + SizeKeyLen + SizeValueType
-		if valLen > 0 {
-			keysLen += SizeValueOffset
+	return Build(func(cb func(string, interface{})) {
+		for key, value := range m {
+			cb(key, value)
 		}
-		valuesLen += valLen
-	}
-	sort.Strings(sortedKeys)
+	}, func(key string) interface{} {
+		return m[key]
+	}, false)
+}
 
-	startOfValues := keysLen
-	bm := make(ByteMap, startOfValues+valuesLen)
-	keyOffset := 0
-	valueOffset := startOfValues
-	for _, key := range sortedKeys {
-		keyLen := len(key)
-		enc.PutUint16(bm[keyOffset:], uint16(keyLen))
-		copy(bm[keyOffset+SizeKeyLen:], key)
-		keyOffset += SizeKeyLen + keyLen
-		t, n := encodeValue(bm[valueOffset:], m[key])
-		bm[keyOffset] = t
-		keyOffset += SizeValueType
-		if t != TypeNil {
-			enc.PutUint32(bm[keyOffset:], uint32(valueOffset))
-			keyOffset += SizeValueOffset
-			valueOffset += n
+// NewFloat creates a new ByteMap from the given map
+func NewFloat(m map[string]float64) ByteMap {
+	return Build(func(cb func(string, interface{})) {
+		for key, value := range m {
+			cb(key, value)
 		}
-	}
-
-	return bm
+	}, func(key string) interface{} {
+		return m[key]
+	}, false)
 }
 
 // FromSortedKeysAndValues constructs a ByteMap from sorted keys and values.
 func FromSortedKeysAndValues(keys []string, values []interface{}) ByteMap {
-	return doFromSortedKeysAndValues(keys, interfaceValues(values))
+	return Build(func(cb func(string, interface{})) {
+		for i, key := range keys {
+			cb(key, values[i])
+		}
+	}, nil, true)
 }
 
 // FromSortedKeysAndFloats constructs a ByteMap from sorted keys and float values.
 func FromSortedKeysAndFloats(keys []string, values []float64) ByteMap {
-	return doFromSortedKeysAndValues(keys, floatValues(values))
+	return Build(func(cb func(string, interface{})) {
+		for i, key := range keys {
+			cb(key, values[i])
+		}
+	}, nil, true)
 }
 
-func doFromSortedKeysAndValues(keys []string, vals valuesIF) ByteMap {
-	keysLen := 0
-	for _, key := range keys {
-		keysLen += len(key) + SizeKeyLen + SizeValueType
-	}
-	valuesLen := 0
-	for i := 0; i < len(keys); i++ {
-		value := vals.get(i)
-		valLen := encodedLength(value)
-		valuesLen += valLen
-		if valLen > 0 {
-			keysLen += SizeValueOffset
-		}
-	}
-
-	startOfValues := keysLen
-	bm := make(ByteMap, startOfValues+valuesLen)
-	keyOffset := 0
-	valueOffset := startOfValues
-	for i, key := range keys {
-		keyLen := len(key)
-		enc.PutUint16(bm[keyOffset:], uint16(keyLen))
-		copy(bm[keyOffset+SizeKeyLen:], key)
-		keyOffset += SizeKeyLen + keyLen
-		t, n := encodeValue(bm[valueOffset:], vals.get(i))
-		bm[keyOffset] = t
-		keyOffset += SizeValueType
-		if t != TypeNil {
-			enc.PutUint32(bm[keyOffset:], uint32(valueOffset))
-			keyOffset += SizeValueOffset
-			valueOffset += n
-		}
-	}
-
-	return bm
-}
-
-// NewFLoat creates a new ByteMap from the given map
-func NewFloat(m map[string]float64) ByteMap {
-	// TODO: this code is duplicated with the above, need to get DRY
-	sortedKeys := make([]string, 0, len(m))
+// Build builds a new ByteMap using a function that iterates overall included
+// key/value paris and another function that returns the value for a given key/
+// index. If iteratesSorted is true, then the iterate order of iterate is
+// considered to be in lexicographically sorted order over the keys and is
+// stable over multiple invocations, and valueFor is not needed.
+func Build(iterate func(func(string, interface{})), valueFor func(string) interface{}, iteratesSorted bool) ByteMap {
 	keysLen := 0
 	valuesLen := 0
-	for key, value := range m {
-		sortedKeys = append(sortedKeys, key)
+
+	recordKey := func(key string, value interface{}) {
 		valLen := encodedLength(value)
 		keysLen += len(key) + SizeKeyLen + SizeValueType
 		if valLen > 0 {
@@ -141,18 +98,39 @@ func NewFloat(m map[string]float64) ByteMap {
 		}
 		valuesLen += valLen
 	}
-	sort.Strings(sortedKeys)
+
+	var finalIterate func(func(string, interface{}))
+
+	if iteratesSorted {
+		iterate(func(key string, value interface{}) {
+			recordKey(key, value)
+		})
+		finalIterate = iterate
+	} else {
+		sortedKeys := make([]string, 0, 10)
+		iterate(func(key string, value interface{}) {
+			sortedKeys = append(sortedKeys, key)
+			recordKey(key, value)
+		})
+		sort.Strings(sortedKeys)
+
+		finalIterate = func(cb func(string, interface{})) {
+			for _, key := range sortedKeys {
+				cb(key, valueFor(key))
+			}
+		}
+	}
 
 	startOfValues := keysLen
 	bm := make(ByteMap, startOfValues+valuesLen)
 	keyOffset := 0
 	valueOffset := startOfValues
-	for _, key := range sortedKeys {
+	finalIterate(func(key string, value interface{}) {
 		keyLen := len(key)
 		enc.PutUint16(bm[keyOffset:], uint16(keyLen))
 		copy(bm[keyOffset+SizeKeyLen:], key)
 		keyOffset += SizeKeyLen + keyLen
-		t, n := encodeValue(bm[valueOffset:], m[key])
+		t, n := encodeValue(bm[valueOffset:], value)
 		bm[keyOffset] = t
 		keyOffset += SizeValueType
 		if t != TypeNil {
@@ -160,7 +138,7 @@ func NewFloat(m map[string]float64) ByteMap {
 			keyOffset += SizeValueOffset
 			valueOffset += n
 		}
-	}
+	})
 
 	return bm
 }
