@@ -159,6 +159,12 @@ func TestSliceEmpty(t *testing.T) {
 	assert.Empty(t, bm.Slice("unspecified").AsMap())
 }
 
+func BenchmarkNew(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		New(m)
+	}
+}
+
 func BenchmarkByteMapAllKeys(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		bm := New(m)
