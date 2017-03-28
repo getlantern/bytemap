@@ -159,6 +159,32 @@ func TestSliceEmpty(t *testing.T) {
 	assert.Empty(t, bm.Slice("unspecified").AsMap())
 }
 
+func TestSplit(t *testing.T) {
+	bm := New(m)
+	bm2, bm3 := bm.Split(sliceKeys...)
+	assert.True(t, len(bm2) < len(bm))
+	for _, key := range sliceKeys {
+		if "aunknown" == key {
+			assert.Nil(t, bm2.Get(key))
+		} else {
+			assert.Equal(t, m[key], bm2.Get(key))
+		}
+	}
+	bm.IterateValues(func(key string, value interface{}) bool {
+		isSliceKey := false
+		for _, candidate := range sliceKeys {
+			if key == candidate {
+				isSliceKey = true
+				break
+			}
+		}
+		if !isSliceKey {
+			assert.Equal(t, value, bm3.Get(key), "Omitted should include key %v", key)
+		}
+		return true
+	})
+}
+
 func BenchmarkNew(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		New(m)

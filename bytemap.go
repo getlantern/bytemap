@@ -292,53 +292,65 @@ func (bm ByteMap) Iterate(includeValue bool, includeBytes bool, cb func(key stri
 }
 
 // Slice creates a new ByteMap that contains only the specified keys from the
-// original. Any keys that were not found in the original will appear in the
-// result with a nil value.
+// original.
 func (bm ByteMap) Slice(keys ...string) ByteMap {
+	result, _ := bm.doSplit(false, keys)
+	return result
+}
+
+// Split returns two byte maps, the first containing all of the specified keys
+// and the second containing all of the other keys.
+func (bm ByteMap) Split(keys ...string) (ByteMap, ByteMap) {
+	return bm.doSplit(true, keys)
+}
+
+func (bm ByteMap) doSplit(includeOmitted bool, keys []string) (ByteMap, ByteMap) {
 	sort.Strings(keys)
 	keyBytes := make([][]byte, 0, len(keys))
 	for _, key := range keys {
 		keyBytes = append(keyBytes, []byte(key))
 	}
 	matchedKeys := make([][]byte, 0, len(keys))
+	matchedValueOffsets := make([]int, 0, len(keys))
 	matchedValues := make([][]byte, 0, len(keys))
-	valueOffsets := make([]int, 0, len(keys))
-	keysLen := 0
-	valuesLen := 0
+	matchedKeysLen := 0
+	matchedValuesLen := 0
+	var omittedKeys [][]byte
+	var omittedValueOffsets []int
+	var omittedValues [][]byte
+	omittedKeysLen := 0
+	omittedValuesLen := 0
+	if includeOmitted {
+		omittedKeys = make([][]byte, 0, 10)
+		omittedValueOffsets = make([]int, 0, 10)
+		omittedValues = make([][]byte, 0, 10)
+	}
 	keyOffset := 0
 	firstValueOffset := 0
-	matched := false
 
-	advance := func(candidate []byte) {
+	advance := func(candidate []byte) bool {
+		if keyBytes == nil {
+			return false
+		}
+		var keyComparison int
 		for {
 			key := keyBytes[0]
-			keyComparison := bytes.Compare(candidate, key)
-			if keyComparison > 0 {
-				// Key not represented, skip it
-				keyLen := len(key)
-				b := make([]byte, SizeKeyLen+keyLen+SizeValueType)
-				enc.PutUint16(b, uint16(keyLen))
-				copy(b[SizeKeyLen:], key)
-				keysLen += len(b)
-				matchedKeys = append(matchedKeys, b)
-				valueOffsets = append(valueOffsets, -1)
+			keyComparison = bytes.Compare(candidate, key)
+			for {
+				if keyComparison <= 0 {
+					break
+				}
+				// Candidate is past key, consume keys
 				if len(keyBytes) > 1 {
 					keyBytes = keyBytes[1:]
-					continue
 				} else {
 					keyBytes = nil
 					break
 				}
+				key = keyBytes[0]
+				keyComparison = bytes.Compare(candidate, key)
 			}
-			matched = keyComparison == 0
-			if matched {
-				if len(keyBytes) > 1 {
-					keyBytes = keyBytes[1:]
-				} else {
-					keyBytes = nil
-				}
-			}
-			break
+			return keyComparison == 0
 		}
 	}
 
@@ -350,46 +362,56 @@ func (bm ByteMap) Slice(keys ...string) ByteMap {
 		keyLen := int(enc.Uint16(bm[keyOffset:]))
 		keyOffset += SizeKeyLen
 		candidate := bm[keyOffset : keyOffset+keyLen]
-		advance(candidate)
+		matched := advance(candidate)
 		keyOffset += keyLen
 		t := bm[keyOffset]
 		keyOffset += SizeValueType
-		if matched {
-			matchedKeys = append(matchedKeys, bm[keyStart:keyOffset])
-			if t == TypeNil {
-				valueOffsets = append(valueOffsets, -1)
-			} else {
-				valueOffset := int(enc.Uint32(bm[keyOffset:]))
-				valueLen := bm.lengthOf(valueOffset, t)
-				matchedValues = append(matchedValues, bm[valueOffset:valueOffset+valueLen])
-				valueOffsets = append(valueOffsets, valuesLen)
-				keysLen += SizeValueOffset
-				valuesLen += valueLen
-			}
-			keysLen += keyOffset - keyStart
-		}
 		if t != TypeNil {
+			valueOffset := int(enc.Uint32(bm[keyOffset:]))
+			if firstValueOffset == 0 {
+				firstValueOffset = valueOffset
+			}
+			valueLen := bm.lengthOf(valueOffset, t)
+			value := bm[valueOffset : valueOffset+valueLen]
+
+			if matched {
+				matchedKeys = append(matchedKeys, bm[keyStart:keyOffset])
+				matchedValueOffsets = append(matchedValueOffsets, matchedValuesLen)
+				matchedValues = append(matchedValues, value)
+				matchedKeysLen += keyOffset + SizeValueOffset - keyStart
+				matchedValuesLen += valueLen
+			} else if includeOmitted {
+				omittedKeys = append(omittedKeys, bm[keyStart:keyOffset])
+				omittedValueOffsets = append(omittedValueOffsets, omittedValuesLen)
+				omittedValues = append(omittedValues, value)
+				omittedKeysLen += keyOffset + SizeValueOffset - keyStart
+				omittedValuesLen += valueLen
+			}
+
 			keyOffset += SizeValueOffset
 		}
-		if keyBytes == nil {
-			break
-		}
-		if t != TypeNil {
-			if firstValueOffset == 0 {
-				firstValueOffset = int(enc.Uint32(bm[keyOffset:]))
-			}
-		}
+
 		if keyOffset >= firstValueOffset {
 			break
 		}
-		if len(keyBytes) == 0 {
+
+		if !includeOmitted && len(keyBytes) == 0 {
 			break
 		}
 	}
 
+	included := buildFromSliced(matchedKeysLen, matchedValuesLen, matchedKeys, matchedValueOffsets, matchedValues)
+	var omitted ByteMap
+	if includeOmitted {
+		omitted = buildFromSliced(omittedKeysLen, omittedValuesLen, omittedKeys, omittedValueOffsets, omittedValues)
+	}
+	return included, omitted
+}
+
+func buildFromSliced(keysLen int, valuesLen int, keys [][]byte, valueOffsets []int, values [][]byte) ByteMap {
 	out := make(ByteMap, keysLen+valuesLen)
 	offset := 0
-	for i, kb := range matchedKeys {
+	for i, kb := range keys {
 		valueOffset := valueOffsets[i]
 		copy(out[offset:], kb)
 		offset += len(kb)
@@ -398,11 +420,10 @@ func (bm ByteMap) Slice(keys ...string) ByteMap {
 			offset += SizeValueOffset
 		}
 	}
-	for _, vb := range matchedValues {
+	for _, vb := range values {
 		copy(out[offset:], vb)
 		offset += len(vb)
 	}
-
 	return out
 }
 
