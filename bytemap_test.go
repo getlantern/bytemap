@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/getlantern/msgpack"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
 var (
