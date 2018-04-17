@@ -28,7 +28,7 @@ var (
 		"float32": float32(math.MaxFloat32),
 		"float64": float64(math.MaxFloat64),
 		"string":  "Hello World",
-		"time":    time.Now(),
+		"time":    time.Date(2014, 02, 05, 17, 6, 3, 9, time.Local),
 		"nil":     nil,
 	}
 
@@ -56,7 +56,12 @@ func TestGet(t *testing.T) {
 		assert.Equal(t, value, bm.Get(key))
 		assert.EqualValues(t, mbytes[key], bm.GetBytes(key), fmt.Sprint(value))
 	}
-	assert.Nil(t, bm.Get("unspecified"))
+
+	for i := 1; i < len(bm); i++ {
+		truncated := bm[:i]
+		assert.Nil(t, truncated.Get("unspecified"))
+		assert.Nil(t, truncated.GetBytes("unspecified"))
+	}
 }
 
 func TestGetEmpty(t *testing.T) {
