@@ -149,26 +149,32 @@ func (bm ByteMap) Get(key string) interface{} {
 	keyOffset := 0
 	firstValueOffset := 0
 	for {
-		if keyOffset >= len(bm) {
-			break
+		keyLen, ok := bm.uint16At(keyOffset)
+		if !ok {
+			return nil
 		}
-		keyLen := int(enc.Uint16(bm[keyOffset:]))
 		keyOffset += SizeKeyLen
-		keysMatch := bytes.Equal(bm[keyOffset:keyOffset+keyLen], keyBytes)
+		keysMatch := bm.compareAt(keyOffset, keyBytes)
 		keyOffset += keyLen
-		t := bm[keyOffset]
+		t, ok := bm.byteAt(keyOffset)
+		if !ok {
+			return nil
+		}
 		keyOffset += SizeValueType
 		if t == TypeNil {
 			if keysMatch {
 				return nil
 			}
 		} else {
-			valueOffset := int(enc.Uint32(bm[keyOffset:]))
+			valueOffset, ok := bm.uint32At(keyOffset)
+			if !ok {
+				return nil
+			}
 			if firstValueOffset == 0 {
 				firstValueOffset = valueOffset
 			}
 			if keysMatch {
-				return decodeValue(bm[valueOffset:], t)
+				return bm.decodeValueAt(valueOffset, t)
 			}
 			keyOffset += SizeValueOffset
 		}
@@ -186,26 +192,32 @@ func (bm ByteMap) GetBytes(key string) []byte {
 	keyOffset := 0
 	firstValueOffset := 0
 	for {
-		if keyOffset >= len(bm) {
-			break
+		keyLen, ok := bm.uint16At(keyOffset)
+		if !ok {
+			return nil
 		}
-		keyLen := int(enc.Uint16(bm[keyOffset:]))
 		keyOffset += SizeKeyLen
-		keysMatch := bytes.Equal(bm[keyOffset:keyOffset+keyLen], keyBytes)
+		keysMatch := bm.compareAt(keyOffset, keyBytes)
 		keyOffset += keyLen
-		t := bm[keyOffset]
+		t, ok := bm.byteAt(keyOffset)
+		if !ok {
+			return nil
+		}
 		keyOffset += SizeValueType
 		if t == TypeNil {
 			if keysMatch {
 				return nil
 			}
 		} else {
-			valueOffset := int(enc.Uint32(bm[keyOffset:]))
+			valueOffset, ok := bm.uint32At(keyOffset)
+			if !ok {
+				return nil
+			}
 			if firstValueOffset == 0 {
 				firstValueOffset = valueOffset
 			}
 			if keysMatch {
-				return valueBytes(bm[valueOffset:], t)
+				return bm.valueBytesAt(valueOffset, t)
 			}
 			keyOffset += SizeValueOffset
 		}
@@ -272,12 +284,11 @@ func (bm ByteMap) Iterate(includeValue bool, includeBytes bool, cb func(key stri
 			if firstValueOffset == 0 {
 				firstValueOffset = valueOffset
 			}
-			slice := bm[valueOffset:]
 			if includeValue {
-				value = decodeValue(slice, t)
+				value = bm.decodeValueAt(valueOffset, t)
 			}
 			if includeBytes {
-				bytes = valueBytes(slice, t)
+				bytes = bm.valueBytesAt(valueOffset, t)
 			}
 			keyOffset += SizeValueOffset
 		}
@@ -483,60 +494,124 @@ func encodeValue(slice []byte, value interface{}) (byte, int) {
 	return TypeNil, 0
 }
 
-func decodeValue(slice []byte, t byte) interface{} {
+func (bm ByteMap) decodeValueAt(offset int, t byte) interface{} {
 	switch t {
 	case TypeBool:
-		return slice[0] == 1
+		if bm.offsetTooHigh(offset, 1) {
+			return nil
+		}
+		return bm[offset] == 1
 	case TypeByte:
-		return slice[0]
+		if bm.offsetTooHigh(offset, 1) {
+			return nil
+		}
+		return bm[offset]
 	case TypeUInt16:
-		return enc.Uint16(slice)
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		return enc.Uint16(bm[offset:])
 	case TypeUInt32:
-		return enc.Uint32(slice)
+		if bm.offsetTooHigh(offset, 4) {
+			return nil
+		}
+		return enc.Uint32(bm[offset:])
 	case TypeUInt64:
-		return enc.Uint64(slice)
+		if bm.offsetTooHigh(offset, 8) {
+			return nil
+		}
+		return enc.Uint64(bm[offset:])
 	case TypeUInt:
-		return uint(enc.Uint64(slice))
+		if bm.offsetTooHigh(offset, 8) {
+			return nil
+		}
+		return uint(enc.Uint64(bm[offset:]))
 	case TypeInt8:
-		return int8(slice[0])
+		if bm.offsetTooHigh(offset, 1) {
+			return nil
+		}
+		return int8(bm[offset])
 	case TypeInt16:
-		return int16(enc.Uint16(slice))
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		return int16(enc.Uint16(bm[offset:]))
 	case TypeInt32:
-		return int32(enc.Uint32(slice))
+		if bm.offsetTooHigh(offset, 4) {
+			return nil
+		}
+		return int32(enc.Uint32(bm[offset:]))
 	case TypeInt64:
-		return int64(enc.Uint64(slice))
+		if bm.offsetTooHigh(offset, 8) {
+			return nil
+		}
+		return int64(enc.Uint64(bm[offset:]))
 	case TypeInt:
-		return int(enc.Uint64(slice))
+		if bm.offsetTooHigh(offset, 8) {
+			return nil
+		}
+		return int(enc.Uint64(bm[offset:]))
 	case TypeFloat32:
-		return math.Float32frombits(enc.Uint32(slice))
+		if bm.offsetTooHigh(offset, 4) {
+			return nil
+		}
+		return math.Float32frombits(enc.Uint32(bm[offset:]))
 	case TypeFloat64:
-		return math.Float64frombits(enc.Uint64(slice))
+		if bm.offsetTooHigh(offset, 8) {
+			return nil
+		}
+		return math.Float64frombits(enc.Uint64(bm[offset:]))
 	case TypeString:
-		l := int(enc.Uint16(slice))
-		return string(slice[2 : l+2])
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		l := int(enc.Uint16(bm[offset:]))
+		if bm.offsetTooHigh(offset+2, l) {
+			return nil
+		}
+		return string(bm[offset+2 : offset+2+l])
 	case TypeTime:
-		nanos := int64(enc.Uint64(slice))
+		if bm.offsetTooHigh(offset, 8) {
+			return nil
+		}
+		nanos := int64(enc.Uint64(bm[offset:]))
 		second := int64(time.Second)
 		return time.Unix(nanos/second, nanos%second)
 	}
 	return nil
 }
 
-func valueBytes(slice []byte, t byte) []byte {
+func (bm ByteMap) valueBytesAt(offset int, t byte) []byte {
 	switch t {
 	case TypeBool, TypeByte, TypeInt8:
-		return slice[:1]
+		if bm.offsetTooHigh(offset, 1) {
+			return nil
+		}
+		return bm[offset : offset+1]
 	case TypeUInt16, TypeInt16:
-		return slice[:2]
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		return bm[offset : offset+2]
 	case TypeUInt32, TypeInt32, TypeFloat32:
-		return slice[:4]
-	case TypeUInt64, TypeUInt, TypeInt64, TypeInt, TypeFloat64:
-		return slice[:8]
+		if bm.offsetTooHigh(offset, 4) {
+			return nil
+		}
+		return bm[offset : offset+4]
+	case TypeUInt64, TypeUInt, TypeInt64, TypeInt, TypeFloat64, TypeTime:
+		if bm.offsetTooHigh(offset, 8) {
+			return nil
+		}
+		return bm[offset : offset+8]
 	case TypeString:
-		l := int(enc.Uint16(slice))
-		return slice[0 : l+2]
-	case TypeTime:
-		return slice[:8]
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		l := int(enc.Uint16(bm[offset:]))
+		if bm.offsetTooHigh(offset+2, l) {
+			return nil
+		}
+		return bm[offset : offset+2+l]
 	}
 	return nil
 }
@@ -571,4 +646,37 @@ func (bm ByteMap) lengthOf(valueOffset int, t byte) int {
 		return int(enc.Uint16(bm[valueOffset:])) + 2
 	}
 	return 0
+}
+
+func (bm ByteMap) byteAt(offset int) (b byte, ok bool) {
+	if bm.offsetTooHigh(offset, 1) {
+		return 0, false
+	}
+	return bm[offset], true
+}
+
+func (bm ByteMap) uint16At(offset int) (result int, ok bool) {
+	if bm.offsetTooHigh(offset, 2) {
+		return 0, false
+	}
+	return int(enc.Uint16(bm[offset:])), true
+}
+
+func (bm ByteMap) uint32At(offset int) (result int, ok bool) {
+	if bm.offsetTooHigh(offset, 4) {
+		return 0, false
+	}
+	return int(enc.Uint32(bm[offset:])), true
+}
+
+func (bm ByteMap) compareAt(offset int, expected []byte) bool {
+	lenExpected := len(expected)
+	if bm.offsetTooHigh(offset, lenExpected) {
+		return false
+	}
+	return bytes.Equal(bm[offset:offset+lenExpected], expected)
+}
+
+func (bm ByteMap) offsetTooHigh(offset int, readWidth int) bool {
+	return offset+readWidth > len(bm)
 }
