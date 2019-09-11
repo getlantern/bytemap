@@ -26,6 +26,7 @@ const (
 	TypeString
 	TypeTime
 	TypeUInt
+	TypeBytes
 )
 
 const (
@@ -487,6 +488,10 @@ func encodeValue(slice []byte, value interface{}) (byte, int) {
 		enc.PutUint16(slice, uint16(len(v)))
 		copy(slice[2:], v)
 		return TypeString, len(v) + 2
+	case []byte:
+		enc.PutUint16(slice, uint16(len(v)))
+		copy(slice[2:], v)
+		return TypeBytes, len(v) + 2
 	case time.Time:
 		enc.PutUint64(slice, uint64(v.UnixNano()))
 		return TypeTime, 8
@@ -570,6 +575,15 @@ func (bm ByteMap) decodeValueAt(offset int, t byte) interface{} {
 			return nil
 		}
 		return string(bm[offset+2 : offset+2+l])
+	case TypeBytes:
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		l := int(enc.Uint16(bm[offset:]))
+		if bm.offsetTooHigh(offset+2, l) {
+			return nil
+		}
+		return []byte(bm[offset+2 : offset+2+l])
 	case TypeTime:
 		if bm.offsetTooHigh(offset, 8) {
 			return nil
@@ -603,7 +617,7 @@ func (bm ByteMap) valueBytesAt(offset int, t byte) []byte {
 			return nil
 		}
 		return bm[offset : offset+8]
-	case TypeString:
+	case TypeString, TypeBytes:
 		if bm.offsetTooHigh(offset, 2) {
 			return nil
 		}
@@ -628,6 +642,8 @@ func encodedLength(value interface{}) int {
 		return 8
 	case string:
 		return len(v) + 2
+	case []byte:
+		return len(v) + 2
 	}
 	return 0
 }
@@ -642,7 +658,7 @@ func (bm ByteMap) lengthOf(valueOffset int, t byte) int {
 		return 4
 	case TypeUInt64, TypeInt64, TypeUInt, TypeInt, TypeFloat64, TypeTime:
 		return 8
-	case TypeString:
+	case TypeString, TypeBytes:
 		return int(enc.Uint16(bm[valueOffset:])) + 2
 	}
 	return 0

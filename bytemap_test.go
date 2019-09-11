@@ -28,16 +28,13 @@ var (
 		"float32": float32(math.MaxFloat32),
 		"float64": float64(math.MaxFloat64),
 		"string":  "Hello World",
+		"bytes":   []byte{7, 2, 7, 9, 122},
 		"time":    time.Date(2014, 02, 05, 17, 6, 3, 9, time.Local),
 		"nil":     nil,
 	}
 
 	sliceKeys = []string{"int16", "aunknown", "byte", "nil", "string"}
 )
-
-func init() {
-
-}
 
 func TestGet(t *testing.T) {
 	bm := New(m)
