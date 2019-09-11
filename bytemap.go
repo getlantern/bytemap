@@ -27,6 +27,7 @@ const (
 	TypeTime
 	TypeUInt
 	TypeBytes
+	TypeFloat64s
 )
 
 const (
@@ -484,6 +485,12 @@ func encodeValue(slice []byte, value interface{}) (byte, int) {
 	case float64:
 		enc.PutUint64(slice, math.Float64bits(v))
 		return TypeFloat64, 8
+	case []float64:
+		enc.PutUint16(slice, uint16(len(v)))
+		for i, f := range v {
+			enc.PutUint64(slice[2+i*8:], math.Float64bits(f))
+		}
+		return TypeFloat64s, len(v)*8 + 2
 	case string:
 		enc.PutUint16(slice, uint16(len(v)))
 		copy(slice[2:], v)
@@ -566,6 +573,19 @@ func (bm ByteMap) decodeValueAt(offset int, t byte) interface{} {
 			return nil
 		}
 		return math.Float64frombits(enc.Uint64(bm[offset:]))
+	case TypeFloat64s:
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		l := int(enc.Uint16(bm[offset:]))
+		if bm.offsetTooHigh(offset+2, l*8) {
+			return nil
+		}
+		result := make([]float64, l)
+		for i := 0; i < l; i++ {
+			result[i] = math.Float64frombits(enc.Uint64(bm[offset+2+i*8:]))
+		}
+		return result
 	case TypeString:
 		if bm.offsetTooHigh(offset, 2) {
 			return nil
@@ -617,6 +637,15 @@ func (bm ByteMap) valueBytesAt(offset int, t byte) []byte {
 			return nil
 		}
 		return bm[offset : offset+8]
+	case TypeFloat64s:
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		l := int(enc.Uint16(bm[offset:]))
+		if bm.offsetTooHigh(offset+2, l*8) {
+			return nil
+		}
+		return bm[offset : offset+2+l*8]
 	case TypeString, TypeBytes:
 		if bm.offsetTooHigh(offset, 2) {
 			return nil
@@ -640,6 +669,8 @@ func encodedLength(value interface{}) int {
 		return 4
 	case uint64, int64, uint, int, float64, time.Time:
 		return 8
+	case []float64:
+		return len(v)*8 + 2
 	case string:
 		return len(v) + 2
 	case []byte:
@@ -658,6 +689,8 @@ func (bm ByteMap) lengthOf(valueOffset int, t byte) int {
 		return 4
 	case TypeUInt64, TypeInt64, TypeUInt, TypeInt, TypeFloat64, TypeTime:
 		return 8
+	case TypeFloat64s:
+		return int(enc.Uint16(bm[valueOffset:]))*8 + 2
 	case TypeString, TypeBytes:
 		return int(enc.Uint16(bm[valueOffset:])) + 2
 	}
