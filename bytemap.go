@@ -28,6 +28,7 @@ const (
 	TypeUInt
 	TypeBytes
 	TypeFloat64s
+	TypeInts
 )
 
 const (
@@ -479,6 +480,12 @@ func encodeValue(slice []byte, value interface{}) (byte, int) {
 	case int:
 		enc.PutUint64(slice, uint64(v))
 		return TypeInt, 8
+	case []int:
+		enc.PutUint16(slice, uint16(len(v)))
+		for i, f := range v {
+			enc.PutUint64(slice[2+i*8:], uint64(f))
+		}
+		return TypeInts, len(v)*8 + 2
 	case float32:
 		enc.PutUint32(slice, math.Float32bits(v))
 		return TypeFloat32, 4
@@ -563,6 +570,19 @@ func (bm ByteMap) decodeValueAt(offset int, t byte) interface{} {
 			return nil
 		}
 		return int(enc.Uint64(bm[offset:]))
+	case TypeInts:
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		l := int(enc.Uint16(bm[offset:]))
+		if bm.offsetTooHigh(offset+2, l*8) {
+			return nil
+		}
+		result := make([]int, l)
+		for i := 0; i < l; i++ {
+			result[i] = int(enc.Uint64(bm[offset+2+i*8:]))
+		}
+		return result
 	case TypeFloat32:
 		if bm.offsetTooHigh(offset, 4) {
 			return nil
@@ -637,6 +657,15 @@ func (bm ByteMap) valueBytesAt(offset int, t byte) []byte {
 			return nil
 		}
 		return bm[offset : offset+8]
+	case TypeInts:
+		if bm.offsetTooHigh(offset, 2) {
+			return nil
+		}
+		l := int(enc.Uint16(bm[offset:]))
+		if bm.offsetTooHigh(offset+2, l*8) {
+			return nil
+		}
+		return bm[offset : offset+2+l*8]
 	case TypeFloat64s:
 		if bm.offsetTooHigh(offset, 2) {
 			return nil
@@ -669,6 +698,8 @@ func encodedLength(value interface{}) int {
 		return 4
 	case uint64, int64, uint, int, float64, time.Time:
 		return 8
+	case []int:
+		return len(v)*8 + 2
 	case []float64:
 		return len(v)*8 + 2
 	case string:
@@ -689,7 +720,7 @@ func (bm ByteMap) lengthOf(valueOffset int, t byte) int {
 		return 4
 	case TypeUInt64, TypeInt64, TypeUInt, TypeInt, TypeFloat64, TypeTime:
 		return 8
-	case TypeFloat64s:
+	case TypeInts, TypeFloat64s:
 		return int(enc.Uint16(bm[valueOffset:]))*8 + 2
 	case TypeString, TypeBytes:
 		return int(enc.Uint16(bm[valueOffset:])) + 2

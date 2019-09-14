@@ -25,6 +25,7 @@ var (
 		"int32":    int32(math.MaxInt32),
 		"int64":    int64(math.MaxInt64),
 		"int":      math.MaxInt64,
+		"ints":     []int{math.MaxInt64, math.MinInt64},
 		"float32":  float32(math.MaxFloat32),
 		"float64":  float64(math.MaxFloat64),
 		"float64s": []float64{math.MaxFloat64, -1 * math.MaxFloat64, 0},
