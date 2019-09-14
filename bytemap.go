@@ -4,7 +4,9 @@ package bytemap
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math"
+	"reflect"
 	"sort"
 	"time"
 )
@@ -509,6 +511,9 @@ func encodeValue(slice []byte, value interface{}) (byte, int) {
 	case time.Time:
 		enc.PutUint64(slice, uint64(v.UnixNano()))
 		return TypeTime, 8
+	}
+	if value != nil {
+		fmt.Printf("Value of unknown type '%v': %v\n", reflect.TypeOf(value), value)
 	}
 	return TypeNil, 0
 }
