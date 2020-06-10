@@ -35,7 +35,7 @@ var (
 		"nil":      nil,
 	}
 
-	sliceKeys = []string{"int16", "aunknown", "byte", "nil", "string"}
+	sliceKeys = []string{"int16", "aunknown", "string", "nil", "int16", "byte", "nil", "string"}
 )
 
 func TestGet(t *testing.T) {
