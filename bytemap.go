@@ -306,20 +306,20 @@ func (bm ByteMap) Iterate(includeValue bool, includeBytes bool, cb func(key stri
 }
 
 // Slice creates a new ByteMap that contains only the specified keys from the
-// original.
+// original. The keys have to be sorted lexicographically prior to passing here.
 func (bm ByteMap) Slice(keys ...string) ByteMap {
 	result, _ := bm.doSplit(false, keys)
 	return result
 }
 
 // Split returns two byte maps, the first containing all of the specified keys
-// and the second containing all of the other keys.
+// and the second containing all of the other keys. The keys have to be sorted
+// lexicographically prior to passing here.
 func (bm ByteMap) Split(keys ...string) (ByteMap, ByteMap) {
 	return bm.doSplit(true, keys)
 }
 
 func (bm ByteMap) doSplit(includeOmitted bool, keys []string) (ByteMap, ByteMap) {
-	sort.Strings(keys)
 	keyBytes := make([][]byte, 0, len(keys))
 	for _, key := range keys {
 		keyBytes = append(keyBytes, []byte(key))

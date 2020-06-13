@@ -34,9 +34,13 @@ var (
 		"time":     time.Date(2014, 02, 05, 17, 6, 3, 9, time.Local),
 		"nil":      nil,
 	}
-
-	sliceKeys = []string{"int", "int16", "aunknown", "string", "nil", "int16", "byte", "nil", "string"}
 )
+
+func sliceKeys() []string {
+	sliceKeys := []string{"int", "int16", "aunknown", "string", "nil", "int16", "byte", "nil", "string"}
+	sort.Strings(sliceKeys)
+	return sliceKeys
+}
 
 func TestGet(t *testing.T) {
 	bm := New(m)
@@ -147,9 +151,10 @@ func TestNilOnly(t *testing.T) {
 
 func TestSlice(t *testing.T) {
 	bm := New(m)
-	bm2 := bm.Slice(sliceKeys...)
+	keys := sliceKeys()
+	bm2 := bm.Slice(keys...)
 	assert.True(t, len(bm2) < len(bm))
-	for _, key := range sliceKeys {
+	for _, key := range keys {
 		if "aunknown" == key {
 			assert.Nil(t, bm2.Get(key))
 		} else {
@@ -165,9 +170,10 @@ func TestSliceEmpty(t *testing.T) {
 
 func TestSplit(t *testing.T) {
 	bm := New(m)
-	bm2, bm3 := bm.Split(sliceKeys...)
+	keys := sliceKeys()
+	bm2, bm3 := bm.Split(keys...)
 	assert.True(t, len(bm2) < len(bm))
-	for _, key := range sliceKeys {
+	for _, key := range keys {
 		if "aunknown" == key {
 			assert.Nil(t, bm2.Get(key))
 		} else {
@@ -176,7 +182,7 @@ func TestSplit(t *testing.T) {
 	}
 	bm.IterateValues(func(key string, value interface{}) bool {
 		isSliceKey := false
-		for _, candidate := range sliceKeys {
+		for _, candidate := range keys {
 			if key == candidate {
 				isSliceKey = true
 				break
@@ -230,9 +236,10 @@ func BenchmarkByteMapOneKey(b *testing.B) {
 
 func BenchmarkByteSlice(b *testing.B) {
 	bm := New(m)
+	keys := sliceKeys()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		bm.Slice(sliceKeys...)
+		bm.Slice(keys...)
 	}
 }
 
@@ -256,8 +263,9 @@ func BenchmarkMsgPackOneKey(b *testing.B) {
 }
 
 func BenchmarkMsgPackSlice(b *testing.B) {
-	sliceKeysMap := make(map[string]bool, len(sliceKeys))
-	for _, key := range sliceKeys {
+	keys := sliceKeys()
+	sliceKeysMap := make(map[string]bool, len(keys))
+	for _, key := range keys {
 		sliceKeysMap[key] = true
 	}
 	p, _ := msgpack.Marshal(m)
