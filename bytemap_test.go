@@ -34,13 +34,16 @@ var (
 		"time":     time.Date(2014, 02, 05, 17, 6, 3, 9, time.Local),
 		"nil":      nil,
 	}
-)
 
-func sliceKeys() []string {
-	sliceKeys := []string{"int", "int16", "aunknown", "string", "nil", "int16", "byte", "nil", "string"}
-	sort.Strings(sliceKeys)
-	return sliceKeys
-}
+	sliceKeys = map[string]bool{
+		"int":      true,
+		"int16":    true,
+		"aunknown": true,
+		"string":   true,
+		"nil":      true,
+		"byte":     true,
+	}
+)
 
 func TestGet(t *testing.T) {
 	bm := New(m)
@@ -151,10 +154,9 @@ func TestNilOnly(t *testing.T) {
 
 func TestSlice(t *testing.T) {
 	bm := New(m)
-	keys := sliceKeys()
-	bm2 := bm.Slice(keys...)
+	bm2 := bm.Slice(sliceKeys)
 	assert.True(t, len(bm2) < len(bm))
-	for _, key := range keys {
+	for key := range sliceKeys {
 		if "aunknown" == key {
 			assert.Nil(t, bm2.Get(key))
 		} else {
@@ -165,15 +167,14 @@ func TestSlice(t *testing.T) {
 
 func TestSliceEmpty(t *testing.T) {
 	bm := ByteMap(nil)
-	assert.Empty(t, bm.Slice("unspecified").AsMap())
+	assert.Empty(t, bm.Slice(map[string]bool{"unspecified": true}).AsMap())
 }
 
 func TestSplit(t *testing.T) {
 	bm := New(m)
-	keys := sliceKeys()
-	bm2, bm3 := bm.Split(keys...)
+	bm2, bm3 := bm.Split(sliceKeys)
 	assert.True(t, len(bm2) < len(bm))
-	for _, key := range keys {
+	for key := range sliceKeys {
 		if "aunknown" == key {
 			assert.Nil(t, bm2.Get(key))
 		} else {
@@ -182,7 +183,7 @@ func TestSplit(t *testing.T) {
 	}
 	bm.IterateValues(func(key string, value interface{}) bool {
 		isSliceKey := false
-		for _, candidate := range keys {
+		for candidate := range sliceKeys {
 			if key == candidate {
 				isSliceKey = true
 				break
@@ -236,10 +237,9 @@ func BenchmarkByteMapOneKey(b *testing.B) {
 
 func BenchmarkByteSlice(b *testing.B) {
 	bm := New(m)
-	keys := sliceKeys()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		bm.Slice(keys...)
+		bm.Slice(sliceKeys)
 	}
 }
 
@@ -263,9 +263,8 @@ func BenchmarkMsgPackOneKey(b *testing.B) {
 }
 
 func BenchmarkMsgPackSlice(b *testing.B) {
-	keys := sliceKeys()
-	sliceKeysMap := make(map[string]bool, len(keys))
-	for _, key := range keys {
+	sliceKeysMap := make(map[string]bool, len(sliceKeys))
+	for key := range sliceKeys {
 		sliceKeysMap[key] = true
 	}
 	p, _ := msgpack.Marshal(m)

@@ -84,7 +84,7 @@ func FromSortedKeysAndFloats(keys []string, values []float64) ByteMap {
 	}, nil, true)
 }
 
-// Build builds a new ByteMap using a function that iterates overall included
+// Build builds a new ByteMap using a function that iterates over all included
 // key/value paris and another function that returns the value for a given key/
 // index. If iteratesSorted is true, then the iterate order of iterate is
 // considered to be in lexicographically sorted order over the keys and is
@@ -306,27 +306,22 @@ func (bm ByteMap) Iterate(includeValue bool, includeBytes bool, cb func(key stri
 }
 
 // Slice creates a new ByteMap that contains only the specified keys from the
-// original. The keys have to be sorted lexicographically prior to passing here.
-func (bm ByteMap) Slice(keys ...string) ByteMap {
-	result, _ := bm.doSplit(false, keys)
+// original.
+func (bm ByteMap) Slice(includeKeys map[string]bool) ByteMap {
+	result, _ := bm.doSplit(false, includeKeys)
 	return result
 }
 
 // Split returns two byte maps, the first containing all of the specified keys
-// and the second containing all of the other keys. The keys have to be sorted
-// lexicographically prior to passing here.
-func (bm ByteMap) Split(keys ...string) (ByteMap, ByteMap) {
-	return bm.doSplit(true, keys)
+// and the second containing all of the other keys.
+func (bm ByteMap) Split(includeKeys map[string]bool) (ByteMap, ByteMap) {
+	return bm.doSplit(true, includeKeys)
 }
 
-func (bm ByteMap) doSplit(includeOmitted bool, keys []string) (ByteMap, ByteMap) {
-	keyBytes := make([][]byte, 0, len(keys))
-	for _, key := range keys {
-		keyBytes = append(keyBytes, []byte(key))
-	}
-	matchedKeys := make([][]byte, 0, len(keys))
-	matchedValueOffsets := make([]int, 0, len(keys))
-	matchedValues := make([][]byte, 0, len(keys))
+func (bm ByteMap) doSplit(includeOmitted bool, includeKeys map[string]bool) (ByteMap, ByteMap) {
+	matchedKeys := make([][]byte, 0, len(includeKeys))
+	matchedValueOffsets := make([]int, 0, len(includeKeys))
+	matchedValues := make([][]byte, 0, len(includeKeys))
 	matchedKeysLen := 0
 	matchedValuesLen := 0
 	var omittedKeys [][]byte
@@ -342,32 +337,6 @@ func (bm ByteMap) doSplit(includeOmitted bool, keys []string) (ByteMap, ByteMap)
 	keyOffset := 0
 	firstValueOffset := 0
 
-	advance := func(candidate []byte) bool {
-		if keyBytes == nil {
-			return false
-		}
-		var keyComparison int
-		for {
-			key := keyBytes[0]
-			keyComparison = bytes.Compare(candidate, key)
-			for {
-				if keyComparison <= 0 {
-					break
-				}
-				// Candidate is past key, consume keys
-				if len(keyBytes) > 1 {
-					keyBytes = keyBytes[1:]
-				} else {
-					keyBytes = nil
-					break
-				}
-				key = keyBytes[0]
-				keyComparison = bytes.Compare(candidate, key)
-			}
-			return keyComparison == 0
-		}
-	}
-
 	for {
 		if keyOffset >= len(bm) {
 			break
@@ -376,7 +345,7 @@ func (bm ByteMap) doSplit(includeOmitted bool, keys []string) (ByteMap, ByteMap)
 		keyLen := int(enc.Uint16(bm[keyOffset:]))
 		keyOffset += SizeKeyLen
 		candidate := bm[keyOffset : keyOffset+keyLen]
-		matched := advance(candidate)
+		matched := includeKeys[string(candidate)]
 		keyOffset += keyLen
 		t := bm[keyOffset]
 		keyOffset += SizeValueType
@@ -409,7 +378,7 @@ func (bm ByteMap) doSplit(includeOmitted bool, keys []string) (ByteMap, ByteMap)
 			break
 		}
 
-		if !includeOmitted && len(keyBytes) == 0 {
+		if !includeOmitted && len(matchedKeys) == len(includeKeys) {
 			break
 		}
 	}
